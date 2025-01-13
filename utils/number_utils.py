@@ -18,3 +18,9 @@ def transformar_valor_bra_to_eua(valor_real, decimal=2):
 def transformar_valor_eua_to_bra(valor_americano, decimal=2):
     valor_formatado = f"{valor_americano:,.{decimal}f}"  # Usa ponto para milhares e vírgula para decimais
     return valor_formatado.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+def sanitizar_valor(valor):
+    if isinstance(valor, str):  # Verifica se é uma string
+        valor = valor.replace("R$", "").replace("\u00a0", "").replace(".", "").replace(",", ".").replace(" ", "").strip()
+        return float(valor)
+    return valor

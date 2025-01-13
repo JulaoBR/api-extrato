@@ -3,24 +3,15 @@ from flask import Blueprint, request, jsonify
 import pandas as pd
 from io import StringIO
 from types import SimpleNamespace
-from unidecode import unidecode
 from models.despesa_model import DespesaModel
 from models.despesa_parcela_model import DespesaParcelaModel
 from datetime import datetime, timedelta, timezone
 
+from utils.string_utils import remover_acentos
+from utils.number_utils import sanitizar_valor
+
 # Criando um Blueprint para as rotas
 routes = Blueprint('routes', __name__)
-
-# Função para sanitizar valores monetários
-def sanitizar_valor(valor):
-    if isinstance(valor, str):  # Verifica se é uma string
-        valor = valor.replace("R$", "").replace("\u00a0", "").replace(".", "").replace(",", ".").replace(" ", "").strip()
-        return float(valor)
-    return valor
-
-# Função para remover acentos e caracteres especiais de um texto
-def remover_acentos(texto):
-    return unidecode(texto)
 
 @routes.route('/', methods=['GET'])
 def home():
@@ -84,8 +75,6 @@ def processar_arquivo():
     
         # Adicionar o novo dicionário na lista
         novos_dados.append(iddespesa)
-
-    print(novos_dados)
 
     # Exemplo de processamento
     return jsonify({

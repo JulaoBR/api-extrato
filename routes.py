@@ -17,8 +17,6 @@ def importar_extrato():
     file = request.files['file']
     novos_dados = importar_extrato_cartao(_request)
 
-    print(novos_dados)
-
     # Exemplo de processamento
     return jsonify({
         'message': 'Arquivo recebido e processado com sucesso!',

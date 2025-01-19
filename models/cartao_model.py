@@ -9,6 +9,6 @@ class CartaoModel(BaseModel):
                 """
         try:
             self.cursor.execute(query, (id_cartao, id_usuario))
-            return self.cursor.fetchone()  # Retorna um único registro
+            return self.cursor.fetchone()
         except Exception as e:
-            raise RuntimeError(f"Erro ao buscar usuário: {e}")
+            raise RuntimeError(f"Erro ao buscar cartao: {e}")

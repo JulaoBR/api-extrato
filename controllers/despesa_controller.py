@@ -35,11 +35,11 @@ def calcular_vencimento(cartao, usuario, _request):
     mes = _request.args.get('mes', 0)
     ano = _request.args.get('ano', 0)
 
-    dados_cartao = CartaoModel().consultrar(cartao, usuario)
-    dia = dados_cartao['diaVencimento']
-    if dia < 10:
-        dia = str(dia).zfill(2)
-
+    with CartaoModel() as model_cartao:
+        dados_cartao = model_cartao.consultrar(cartao, usuario)
+        dia = dados_cartao['diaVencimento']
+        if dia < 10:
+            dia = str(dia).zfill(2)
     return f"{ano}-{mes}-{dia}"
 
 def associar_categoria(categorias, string):
@@ -74,21 +74,23 @@ def importar_extrato_cartao(_request):
     vencimento = calcular_vencimento(cartao, usuario, _request)
 
     # Carregar as categorias do banco de dados
-    _categorias = CategoriaModel().consultrar(usuario)
-    categorias = [SimpleNamespace(**item) for item in _categorias]
+    with CategoriaModel() as model_categoria:
+        _categorias = model_categoria.consultrar(usuario)
+        categorias = [SimpleNamespace(**item) for item in _categorias]
 
     novos_dados = []
     # Inicia a transação
     with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela:
         for registro in dados_objetos:
             tipo = converter_para_minusculas(remover_acentos(registro.Tipo.strip()))
+            valor = sanitizar_valor(registro.Valor)
 
-            if tipo == 'compra a vista':
+            if tipo == 'compra a vista' and valor >= 0:
                 iddespesa = model_despesa.inserir({
                     "idusuario": usuario,
                     "idcartao": cartao, 
                     "idcategoria": associar_categoria(categorias, registro.Categoria),
-                    "valor": sanitizar_valor(registro.Valor),
+                    "valor": valor,
                     "descricao": remover_acentos(registro.Lancamento.strip()),
                     "observacao": remover_acentos(f"{registro.Lancamento.strip()} - {registro.Tipo.strip()}"),
                     "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
@@ -99,7 +101,7 @@ def importar_extrato_cartao(_request):
                 model_parcela.inserir({
                     "iddespesa": iddespesa,
                     "numero": '1/1',
-                    "valorParcela": sanitizar_valor(registro.Valor),
+                    "valorParcela": valor,
                     "desconto": 0.00,
                     "acrescimo": 0.00,
                     "dataVencimento": vencimento,

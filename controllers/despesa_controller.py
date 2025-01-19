@@ -45,10 +45,7 @@ def importar_extrato_cartao(_request):
 
     novos_dados = []
     # Inicia a transação
-    with DespesaModel() as model_despesa:
-        # Compartilhar conexão com outro modelo
-        model_parcela = DespesaParcelaModel(model_despesa.connection, model_despesa.cursor)
-
+    with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela:
         for registro in dados_objetos:
             iddespesa = model_despesa.inserir({
                 "idusuario": usuario,

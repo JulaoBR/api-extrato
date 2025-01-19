@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 
 from models.despesa_model import DespesaModel
-from models.despesa_model import DespesaModel
 from models.despesa_parcela_model import DespesaParcelaModel
 
 from utils.string_utils import remover_acentos
@@ -45,33 +44,38 @@ def importar_extrato_cartao(_request):
     data_hora_atual = datetime.now(fuso_horario)
 
     novos_dados = []
-    for registro in dados_objetos:
-        iddespesa = DespesaModel.inserir({
-            "idusuario": usuario,
-            "idcartao": cartao, 
-            "idcategoria": 52,
-            "valor": sanitizar_valor(registro.Valor),
-            "descricao": remover_acentos(registro.Lancamento.strip()),
-            "observacao": remover_acentos(f"{registro.Lancamento.strip()} - {registro.Tipo.strip()}"),
-            "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
-            "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S"),
-            "dataHoraAlteracao": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")
-        })
+    # Inicia a transação
+    with DespesaModel() as model_despesa:
+        # Compartilhar conexão com outro modelo
+        model_parcela = DespesaParcelaModel(model_despesa.connection, model_despesa.cursor)
 
-        DespesaParcelaModel.inserir({
-            "iddespesa": iddespesa,
-            "numero": '1/1',
-            "valorParcela": sanitizar_valor(registro.Valor),
-            "desconto": 0.00,
-            "acrescimo": 0.00,
-            "dataVencimento": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
-            "dataPagamento": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
-            "competencia": '',
-            "status": 0,
-            "evento": 'F'
-        })
-    
-        # Adicionar o novo dicionário na lista
-        novos_dados.append(iddespesa)
+        for registro in dados_objetos:
+            iddespesa = model_despesa.inserir({
+                "idusuario": usuario,
+                "idcartao": cartao, 
+                "idcategoria": 52,
+                "valor": sanitizar_valor(registro.Valor),
+                "descricao": remover_acentos(registro.Lancamento.strip()),
+                "observacao": remover_acentos(f"{registro.Lancamento.strip()} - {registro.Tipo.strip()}"),
+                "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
+                "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S"),
+                "dataHoraAlteracao": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")
+            })
 
-    return novos_dados
+            model_parcela.inserir({
+                "iddespesa": iddespesa,
+                "numero": '1/1',
+                "valorParcela": sanitizar_valor(registro.Valor),
+                "desconto": 0.00,
+                "acrescimo": 0.00,
+                "dataVencimento": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
+                "dataPagamento": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
+                "competencia": '',
+                "status": 0,
+                "evento": 'F'
+            })
+        
+            # Adicionar o novo dicionário na lista
+            novos_dados.append(iddespesa)
+
+        return novos_dados

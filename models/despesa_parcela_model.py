@@ -10,7 +10,6 @@ class DespesaParcelaModel(BaseModel):
                         desconto,
                         acrescimo,
                         dataVencimento,
-                        dataPagamento,
                         competencia,
                         status,
                         evento
@@ -21,7 +20,6 @@ class DespesaParcelaModel(BaseModel):
                         %(desconto)s,
                         %(acrescimo)s,
                         %(dataVencimento)s,
-                        %(dataPagamento)s,
                         %(competencia)s,
                         %(status)s,
                         %(evento)s

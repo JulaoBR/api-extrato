@@ -42,16 +42,33 @@ def calcular_vencimento(cartao, usuario, _request):
             dia = str(dia).zfill(2)
     return f"{ano}-{mes}-{dia}"
 
-def associar_categoria(categorias, string):
-    string = converter_para_minusculas(remover_acentos(string.strip()))
-
+def associar_categoria(categorias, descricao_extrato, categoria_extrato):
     # 0 Para categorias nao encontradas
     id_categoria = 0
-    for categoria in categorias:
-        string_compara = converter_para_minusculas(remover_acentos(f"{categoria.descricao}/{categoria.descricao_extra}"))
-        if string in string_compara:
-            id_categoria = categoria.idcategoria
+
+    # Compara a descricao do extrato com os campos extra de comparacao da categoria
+    for item in categorias:
+        if not item.descricao_extra:
+            continue
+
+        descricao_extra_normalizada = converter_para_minusculas(item.descricao_extra)
+        descricao_extra_normalizada = descricao_extra_normalizada.split()
+        # Verifica se alguma palavra do extrato está na descrição_extra
+        if any(palavra in descricao_extrato for palavra in descricao_extra_normalizada):
+            id_categoria = item.idcategoria
             break
+
+    # Compara a categoria do extrato com a categoria + campos extras de comparacao da categoria
+    if id_categoria == 0:
+        for item in categorias:
+            if not item.descricao_extra:
+                continue
+
+            descricao_extra_normalizada = converter_para_minusculas(remover_acentos(f"{item.descricao} {item.descricao_extra}"))
+            descricao_extra_normalizada = descricao_extra_normalizada.split()
+            if any(palavra in categoria_extrato for palavra in descricao_extra_normalizada):
+                id_categoria = item.idcategoria
+                break
 
     return id_categoria
 
@@ -85,14 +102,17 @@ def importar_extrato_cartao(_request):
             tipo = converter_para_minusculas(remover_acentos(registro.Tipo.strip()))
             valor = sanitizar_valor(registro.Valor)
 
+            descricao = converter_para_minusculas(remover_acentos(registro.Lancamento.strip()))
+            categoria = converter_para_minusculas(remover_acentos(registro.Categoria.strip()))
+
             if tipo == 'compra a vista' and valor >= 0:
                 iddespesa = model_despesa.inserir({
                     "idusuario": usuario,
                     "idcartao": cartao, 
-                    "idcategoria": associar_categoria(categorias, registro.Categoria),
+                    "idcategoria": associar_categoria(categorias, descricao, categoria),
                     "valor": valor,
-                    "descricao": remover_acentos(registro.Lancamento.strip()),
-                    "observacao": remover_acentos(f"{registro.Lancamento.strip()} - {registro.Tipo.strip()}"),
+                    "descricao": descricao,
+                    "observacao": remover_acentos(f"{descricao} - {registro.Tipo.strip()}"),
                     "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
                     "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S"),
                     "dataHoraAlteracao": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")

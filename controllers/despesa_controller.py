@@ -12,14 +12,14 @@ from models.categoria_model import CategoriaModel
 from utils.string_utils import remover_acentos, converter_para_minusculas
 from utils.number_utils import sanitizar_valor
 
-def processar_arquivo_extrato_cartao(_request):
-    file = _request.files['file']  # O arquivo enviado
+def processar_arquivo_extrato_cartao(file):
+    file.stream.seek(0)
 
     # Lê o arquivo como texto
     file_data = file.stream.read().decode('utf-8')
 
     # Converte para um DataFrame usando pandas
-    csv_data = pd.read_csv(StringIO(file_data))
+    csv_data = pd.read_csv(StringIO(file_data), sep=",", quotechar='"', encoding="utf-8")
 
     # Remover acentos nos nomes das colunas
     csv_data.columns = [remover_acentos(coluna) for coluna in csv_data.columns]
@@ -31,9 +31,9 @@ def processar_arquivo_extrato_cartao(_request):
 
     return dados_objetos
 
-def calcular_vencimento(cartao, usuario, _request):
-    mes = _request.args.get('mes', 0)
-    ano = _request.args.get('ano', 0)
+def calcular_vencimento(cartao, usuario, form_data):
+    mes = form_data.get('mes', 0)
+    ano = form_data.get('ano', 0)
 
     with CartaoModel() as model_cartao:
         dados_cartao = model_cartao.consultrar(cartao, usuario)
@@ -72,23 +72,21 @@ def associar_categoria(categorias, descricao_extrato, categoria_extrato):
 
     return id_categoria
 
-def importar_extrato_cartao(_request):
-    # Verifica se um arquivo foi enviado
-    if 'file' not in _request.files:
-        return {'error': 'Arquivo não encontrado'}
+def importar_extrato_cartao(file, form_data):
+    cartao = form_data.get('idcartao', 0)
+    usuario = form_data.get('idusuario', 0)
+    mes = form_data.get('mes', 0)
+    ano = form_data.get('ano', 0)
 
-    cartao = _request.args.get('idcartao', 0)
-    usuario = _request.args.get('idusuario', 0)
-    mes = _request.args.get('mes', 0)
-    ano = _request.args.get('ano', 0)
-    dados_objetos = processar_arquivo_extrato_cartao(_request)
+    # Processa o arquivo
+    dados_objetos = processar_arquivo_extrato_cartao(file)
 
     # Definir o fuso horário UTC-3
     fuso_horario = timezone(timedelta(hours=-3))
     data_hora_atual = datetime.now(fuso_horario)
 
     # Monta data de vencimento com base no mes e ano recebido
-    vencimento = calcular_vencimento(cartao, usuario, _request)
+    vencimento = calcular_vencimento(cartao, usuario, form_data)
 
     # Carregar as categorias do banco de dados
     with CategoriaModel() as model_categoria:
@@ -132,4 +130,4 @@ def importar_extrato_cartao(_request):
             
                 novos_dados.append(iddespesa)
 
-    return novos_dados
+    return {'success': True}

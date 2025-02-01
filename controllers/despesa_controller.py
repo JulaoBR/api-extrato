@@ -12,26 +12,20 @@ from models.categoria_model import CategoriaModel
 from utils.string_utils import remover_acentos, converter_para_minusculas
 from utils.number_utils import sanitizar_valor
 
-def processar_arquivo_extrato_cartao(file):
-    file.stream.seek(0)
-
-    # Lê o arquivo como texto
-    file_data = file.stream.read().decode('utf-8')
-
-    # Converte para um DataFrame usando pandas
-    csv_data = pd.read_csv(StringIO(file_data), sep=",", quotechar='"', encoding="utf-8")
-
+def processar_arquivo_extrato_cartao(dataframe):
     # Remover acentos nos nomes das colunas
-    csv_data.columns = [remover_acentos(coluna) for coluna in csv_data.columns]
+    dataframe.columns = [remover_acentos(coluna) for coluna in dataframe.columns]
 
-    data_csv = csv_data.to_dict(orient='records')
+    data_csv = dataframe.to_dict(orient='records')
 
     # Converte o dicionario para uma lista de objeto
     dados_objetos = [SimpleNamespace(**registro) for registro in data_csv]
 
     return dados_objetos
 
-def calcular_vencimento(cartao, usuario, form_data):
+def calcular_vencimento(form_data):
+    cartao = form_data.get('idcartao', 0)
+    usuario = form_data.get('idusuario', 0)
     mes = form_data.get('mes', 0)
     ano = form_data.get('ano', 0)
 
@@ -72,62 +66,63 @@ def associar_categoria(categorias, descricao_extrato, categoria_extrato):
 
     return id_categoria
 
-def importar_extrato_cartao(file, form_data):
-    cartao = form_data.get('idcartao', 0)
-    usuario = form_data.get('idusuario', 0)
+def importar_extrato_cartao(dataframe, form_data):
+    cartao = int(form_data.get('idcartao', 0))
+    usuario = int(form_data.get('idusuario', 0))
     mes = form_data.get('mes', 0)
     ano = form_data.get('ano', 0)
 
     # Processa o arquivo
-    dados_objetos = processar_arquivo_extrato_cartao(file)
+    dados_objetos = processar_arquivo_extrato_cartao(dataframe)
 
     # Definir o fuso horário UTC-3
     fuso_horario = timezone(timedelta(hours=-3))
     data_hora_atual = datetime.now(fuso_horario)
 
     # Monta data de vencimento com base no mes e ano recebido
-    vencimento = calcular_vencimento(cartao, usuario, form_data)
+    vencimento = calcular_vencimento(form_data)
 
     # Carregar as categorias do banco de dados
     with CategoriaModel() as model_categoria:
         _categorias = model_categoria.consultrar(usuario)
         categorias = [SimpleNamespace(**item) for item in _categorias]
 
-    novos_dados = []
-    # Inicia a transação
-    with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela:
-        for registro in dados_objetos:
-            tipo = converter_para_minusculas(remover_acentos(registro.Tipo.strip()))
-            valor = sanitizar_valor(registro.Valor)
+    try:
+        # Inicia a transação
+        with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela:
+            for registro in dados_objetos:
+                tipo = converter_para_minusculas(remover_acentos(registro.Tipo.strip()))
+                valor = sanitizar_valor(registro.Valor)
 
-            descricao = converter_para_minusculas(remover_acentos(registro.Lancamento.strip()))
-            categoria = converter_para_minusculas(remover_acentos(registro.Categoria.strip()))
+                descricao = converter_para_minusculas(remover_acentos(registro.Lancamento.strip()))
+                categoria = converter_para_minusculas(remover_acentos(registro.Categoria.strip()))
 
-            if tipo == 'compra a vista' and valor >= 0:
-                iddespesa = model_despesa.inserir({
-                    "idusuario": usuario,
-                    "idcartao": cartao, 
-                    "idcategoria": associar_categoria(categorias, descricao, categoria),
-                    "valor": valor,
-                    "descricao": descricao,
-                    "observacao": remover_acentos(f"{descricao} - {registro.Tipo.strip()}"),
-                    "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
-                    "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S"),
-                    "dataHoraAlteracao": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")
-                })
+                if tipo == 'compra a vista' and valor >= 0:
+                    iddespesa = model_despesa.inserir({
+                        "idusuario": usuario,
+                        "idcartao": cartao, 
+                        "idcategoria": associar_categoria(categorias, descricao, categoria),
+                        "valor": valor,
+                        "descricao": descricao,
+                        "observacao": remover_acentos(f"{descricao} - {registro.Tipo.strip()}"),
+                        "dataDespesa": pd.to_datetime(registro.Data, format="%d/%m/%Y").strftime("%Y-%m-%d"),
+                        "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S"),
+                        "dataHoraAlteracao": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")
+                    })
 
-                model_parcela.inserir({
-                    "iddespesa": iddespesa,
-                    "numero": '1/1',
-                    "valorParcela": valor,
-                    "desconto": 0.00,
-                    "acrescimo": 0.00,
-                    "dataVencimento": vencimento,
-                    "competencia": f"{ano}-{mes}",
-                    "status": 0,
-                    "evento": 'F'
-                })
-            
-                novos_dados.append(iddespesa)
+                    model_parcela.inserir({
+                        "iddespesa": iddespesa,
+                        "numero": '1/1',
+                        "valorParcela": valor,
+                        "desconto": 0.00,
+                        "acrescimo": 0.00,
+                        "dataVencimento": vencimento,
+                        "competencia": f"{ano}-{mes}",
+                        "status": 0,
+                        "evento": 'F'
+                    })
+                
+    except Exception as e:
+        return {"error": f"Erro ao processar CSV: {str(e)}"}
 
     return {'success': True}

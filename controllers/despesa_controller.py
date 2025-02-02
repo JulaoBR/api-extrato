@@ -8,6 +8,7 @@ from models.despesa_model import DespesaModel
 from models.despesa_parcela_model import DespesaParcelaModel
 from models.cartao_model import CartaoModel
 from models.categoria_model import CategoriaModel
+from models.importacao_documento_model import ImporteDocumentoModel
 
 from utils.string_utils import remover_acentos, converter_para_minusculas
 from utils.number_utils import sanitizar_valor
@@ -66,9 +67,9 @@ def associar_categoria(categorias, descricao_extrato, categoria_extrato):
 
     return id_categoria
 
-def importar_extrato_cartao(dataframe, form_data):
-    cartao = int(form_data.get('idcartao', 0))
-    usuario = int(form_data.get('idusuario', 0))
+def importar_extrato_cartao(dataframe, file, form_data):
+    cartao = form_data.get('idcartao', 0)
+    usuario = form_data.get('idusuario', 0)
     mes = form_data.get('mes', 0)
     ano = form_data.get('ano', 0)
 
@@ -89,7 +90,9 @@ def importar_extrato_cartao(dataframe, form_data):
 
     try:
         # Inicia a transação
-        with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela:
+        with DespesaModel() as model_despesa, DespesaParcelaModel() as model_parcela, ImporteDocumentoModel() as model_importe:
+            idimportacao = salvar_arquivo_csv(file, usuario, cartao, data_hora_atual, model_importe)
+
             for registro in dados_objetos:
                 tipo = converter_para_minusculas(remover_acentos(registro.Tipo.strip()))
                 valor = sanitizar_valor(registro.Valor)
@@ -102,6 +105,7 @@ def importar_extrato_cartao(dataframe, form_data):
                         "idusuario": usuario,
                         "idcartao": cartao, 
                         "idcategoria": associar_categoria(categorias, descricao, categoria),
+                        "idimportacao": idimportacao,
                         "valor": valor,
                         "descricao": descricao,
                         "observacao": remover_acentos(f"{descricao} - {registro.Tipo.strip()}"),
@@ -126,3 +130,30 @@ def importar_extrato_cartao(dataframe, form_data):
         return {"error": f"Erro ao processar CSV: {str(e)}"}
 
     return {'success': True}
+
+def salvar_arquivo_csv(file, usuario, cartao, data_hora_atual, conexao):
+    try:
+        # Capturar os dados do arquivo
+        nome_arquivo = file.filename
+        tipo_arquivo = file.content_type
+        tamanho_arquivo = len(file.read())
+
+        # Resetar o cursor do arquivo para poder ler de novo
+        file.stream.seek(0)
+        conteudo = file.read()  # Lê o arquivo como bytes
+
+        idimportacao = conexao.inserir({
+            "idusuario": usuario,
+            "idcartao": cartao,
+            "idconta": 0,
+            "nome_arquivo": nome_arquivo,
+            "tipo_arquivo": tipo_arquivo,
+            "tamanho_arquivo": tamanho_arquivo,
+            "arquivo": conteudo,
+            "dataHoraCadastro": data_hora_atual.strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        return idimportacao
+    
+    except Exception as e:
+        return {"error": f"Erro ao inserir documento: {str(e)}"}

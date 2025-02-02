@@ -24,7 +24,7 @@ def importar_extrato():
         return jsonify({'error': resultado_validacao.get_error()}), 400
 
     resultado_importacao = importar_extrato_cartao(
-        resultado_validacao.dataframe, request.args
+        resultado_validacao.dataframe, file, request.args
     )
     if not resultado_importacao.get("success", False):
         return jsonify({'error': resultado_importacao.get("error", "Erro ao importar dados.")}), 500

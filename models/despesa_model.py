@@ -6,7 +6,8 @@ class DespesaModel(BaseModel):
                     INSERT INTO despesa (
                         idusuario,
                         idcategoria,
-                        idcartao, 
+                        idcartao,
+                        idimportacao,
                         valor,
                         descricao,
                         observacao,
@@ -17,6 +18,7 @@ class DespesaModel(BaseModel):
                         %(idusuario)s,
                         %(idcategoria)s,
                         %(idcartao)s,
+                        %(idimportacao)s,
                         %(valor)s,
                         %(descricao)s,
                         %(observacao)s,

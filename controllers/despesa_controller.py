@@ -1,5 +1,6 @@
 from flask import jsonify
 import pandas as pd
+import json
 from io import StringIO
 from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
@@ -100,6 +101,14 @@ def importar_extrato_cartao(dataframe, file, form_data):
                 descricao = converter_para_minusculas(remover_acentos(registro.Lancamento.strip()))
                 categoria = converter_para_minusculas(remover_acentos(registro.Categoria.strip()))
 
+                origem = {
+                    "Data": registro.Data,
+                    "Lancamento": registro.Lancamento,
+                    "Categoria": registro.Categoria,
+                    "Tipo": registro.Tipo,
+                    "Valor": registro.Valor
+                }
+
                 if tipo == 'compra a vista' and valor >= 0:
                     iddespesa = model_despesa.inserir({
                         "idusuario": usuario,
@@ -123,7 +132,8 @@ def importar_extrato_cartao(dataframe, file, form_data):
                         "dataVencimento": vencimento,
                         "competencia": f"{ano}-{mes}",
                         "status": 0,
-                        "evento": 'F'
+                        "evento": 'F',
+                        "origem_importacao": json.dumps(origem, ensure_ascii=False, indent=4)
                     })
                 
     except Exception as e:

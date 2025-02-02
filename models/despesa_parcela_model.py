@@ -12,7 +12,8 @@ class DespesaParcelaModel(BaseModel):
                         dataVencimento,
                         competencia,
                         status,
-                        evento
+                        evento,
+                        origem_importacao
                     ) VALUES (
                         %(iddespesa)s,
                         %(numero)s,
@@ -22,7 +23,8 @@ class DespesaParcelaModel(BaseModel):
                         %(dataVencimento)s,
                         %(competencia)s,
                         %(status)s,
-                        %(evento)s
+                        %(evento)s,
+                        %(origem_importacao)s
                     )
                 """
         try:
